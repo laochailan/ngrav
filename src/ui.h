@@ -1,7 +1,7 @@
 #ifndef UI_H
 #define UI_H
 
-#include <glad.h>
+#include "glad/glad.h"
 #include <GLFW/glfw3.h>
 
 #include "parts.h"
@@ -20,11 +20,15 @@ struct UI {
 
 	GLuint vb;
 	GLfloat *coords;
+	
+	GLuint quadvb;
 
 	quat cam;
 	double scale;
 	int traces;
 	int bhtree;
+
+	uint8_t *pixels;
 };
 
 int ui_init(UI *ui, int N);
@@ -36,5 +40,7 @@ void ui_poll_events(UI *ui);
 
 int ui_should_quit(UI *ui);
 double ui_time(void);
+
+int ui_save_frame(UI *ui, char *filename);
 
 #endif

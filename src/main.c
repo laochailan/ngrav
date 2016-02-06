@@ -3,6 +3,7 @@
 #include <string.h>
 #include <time.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #include "ui.h"
 #include "parts.h"
@@ -18,7 +19,7 @@ int record_loop(char *filename) {
 	}
 
 	if(file_open_write(&f, filename, p.N) != 0) {
-		printf("Error opening '%s': %s", filename, strerror(errno));
+		printf("Error opening '%s': %s\n", filename, strerror(errno));
 		return 1;
 	}
 
@@ -46,7 +47,7 @@ int show_loop(char *filename) {
 	File f;
 
 	if(file_open_read(&f, filename) != 0) {
-		printf("Error opening '%s': %s", filename, strerror(errno));
+		printf("Error opening '%s': %s\n", filename, strerror(errno));
 		return 1;
 	}
 
@@ -55,14 +56,32 @@ int show_loop(char *filename) {
 		return 1;
 	}
 
+	mkdir("frames",0751);
+
+	int frames = 0;
 	while(!ui_should_quit(&ui)) {
+		char filename[32];
+
+		if(file_read_frame(&f) != 0)
+			break;
 		if(file_read_frame(&f) != 0)
 			break;
 
 		ui_draw_file(&ui, &f);
 		ui_poll_events(&ui);
-	}
+		frames++;
+		if(frames % 10 == 0) {
+			printf("%d frames\n", frames);
+		}
 
+		/*snprintf(filename, sizeof(filename), "frames/%05d.webp", frames);
+
+		int rc = ui_save_frame(&ui, filename);
+		if(rc != 0) {
+			printf("failed to save frame: %s\n", strerror(errno));
+			break;
+		}*/
+	}
 	file_close(&f);
 	ui_deinit(&ui);
 	return 0;
@@ -73,7 +92,9 @@ int main(int argc, char **argv) {
 	Parts p;
 
 	if(argc == 1) {
-		char *fn = "cache";
+		time_t t = time(0);
+		char fn[48];
+		strftime(fn,48,"cache_%F_%T",localtime(&t));
 		printf("Recording to '%s'.\n", fn);	
 
 		return record_loop(fn);

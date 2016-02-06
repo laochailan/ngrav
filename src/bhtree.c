@@ -8,7 +8,7 @@
 #include "parts.h"
 
 enum {
-	MAXLEVEL = 9
+	MAXLEVEL = 12
 };
 
 static BHNode *alloc_node(void) {
@@ -142,8 +142,8 @@ void force_rec(BHNode *n, vec f, vec x, double acc) {
 	r = sqrt(vnormsq(d));
 	if(n->n == 1 || n->level >= MAXLEVEL || n->width/r < acc) {
 		if(r >= 1e-15) {
-			if(r < 2e-3) {
-				double f = r/2e-3;
+			if(r < 1e-3) {
+				double f = r/1e-3;
 				f*=f;
 				vmul(d,f*f);
 			}

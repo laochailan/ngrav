@@ -14,6 +14,13 @@ void rand_sphere(vec x, double r) {
 		x[2] = r*(2*randf()-1);
 	} while(vnormsq(x) > r*r);
 }
+
+void rand_cube(vec x, double r) {
+	x[0] = r*(2*randf()-1);
+	x[1] = 0.3*r*(2*randf()-1);
+	x[2] = 0.3*r*(2*randf()-1);
+}
+
 void rand_disk(vec x, double r) {
 	do {
 		x[0] = r*(2*randf()-1);
@@ -36,14 +43,14 @@ int parts_init(Parts *p) {
 	}
 
 	for(i = 0; i < p->N; i++) {
-		rand_disk(p->parts[i].x,0.5);
+		rand_disk(p->parts[i].x,0.3);
 
-		double r = sqrt(vnormsq(p->parts[i].x));
 		p->parts[i].m = 10e-7;
 
-		p->parts[i].v[0] = 1*-p->parts[i].x[1]/sqrt(r);
-		p->parts[i].v[1] = 1*p->parts[i].x[0]/sqrt(r);
-		vmul(p->parts[i].v, sqrt(p->N*p->parts[i].m)/0.5);
+		p->parts[i].v[0] = -p->parts[i].x[1];
+		p->parts[i].v[1] = p->parts[i].x[0];
+		double r = sqrt(vnormsq(p->parts[i].v));
+		vmul(p->parts[i].v, 1.3*sqrt(p->N*p->parts[i].m/0.3/0.3/0.3));
 
 	}
 	return 0;
@@ -91,7 +98,7 @@ void parts_step(Parts *p) {
 #pragma omp parallel for
 	for(i = 0; i < p->N; i++) {
 		vec a;
-		bhtree_force(p->bhtree, a, p->parts[i].x, 0.4);
+		bhtree_force(p->bhtree, a, p->parts[i].x, 1);
 		vmul(a,p->dt);
 		vadd(p->parts[i].v,a);
 	}
@@ -103,9 +110,20 @@ void parts_step(Parts *p) {
 		vadd(p->parts[i].x, dx);
 
 		double r = vnormsq(p->parts[i].x);
-		if(r > 7)
+		if(r > 12)
 			vmul(p->parts[i].x,-1);
 	}
-
+/*
+	vec P;
+	P[0] = 0;
+	P[1] = 0;
+	P[2] = 0;
+	for(i = 0; i < p->N; i++) {
+		P[0] += p->parts[i].v[0];
+		P[1] += p->parts[i].v[0];
+		P[2] += p->parts[i].v[0];
+	}
+	printf("Momentum %f %f %f\n", P[0], P[1], P[2]);
+*/
 	p->t += p->dt;
 }

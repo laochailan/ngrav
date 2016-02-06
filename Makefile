@@ -1,7 +1,7 @@
 CC = gcc
 TARGET = ngrav
 CFLAGS= -g -O3 -Isrc -Wall `pkg-config --cflags glfw3 gl` -fopenmp
-LFLAGS = -lm `pkg-config --libs glfw3 gl` -ldl -lpthread
+LFLAGS = -lm `pkg-config --libs glfw3 gl` -ldl -lpthread -lwebp
 
 SRCS = \
 	  src/main.c \

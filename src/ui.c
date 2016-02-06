@@ -3,23 +3,38 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <webp/encode.h>
 #include "quaternion.h"
 #include "bhtree.h"
+
+enum {
+	W = 1280,
+	H = 720
+};
 
 const GLchar *vshader =
 "#version 330 core\n\
 uniform mat4 proj; \
 uniform mat4 view; \
-layout(location=0) in vec3 p; \
+layout(location=0) in vec3 v; \
+layout(location=1) in vec3 p; \
+out vec2 pos; \
+out float distance; \
 void main() { \
-	gl_Position = proj*(transpose(view)*vec4(p,1)+vec4(0,0,-0.5,0));\
+	vec4 preproj = transpose(view)*vec4(p,1)+vec4(0,0,-0.5,0)+0.04*vec4(v,0); \
+	gl_Position = proj*preproj;\
+	pos = v.xy; \
+	distance = -preproj.z; \
 }";
 
 const GLchar *fshader =
 "#version 330 core\n\
+in vec2 pos;\
+in float distance; \
 out vec4 color; \
 void main() { \
-	color = vec4(0.5,0.9,1.0,0.6); \
+	float r = length(pos);\
+	color = vec4(0.3,0.8,1.0,0.2*exp(-20*r)/(20*distance*distance)); \
 }";
 
 static void print_shader_errors(GLuint shader) {
@@ -112,12 +127,12 @@ static void view_matrix(mat4 m, quat cam, double s) {
 
 int ui_init(UI *ui, int N) {
 	memset(ui, 0, sizeof(UI));
-	ui->scale = 2.5;
+	ui->scale = 1;
 
 	if(!glfwInit())
 		return 1;
 	glfwWindowHint(GLFW_RESIZABLE,0);
-	ui->win = glfwCreateWindow(400,400,"ngrav",0,0);
+	ui->win = glfwCreateWindow(W,H,"ngrav",0,0);
 	if(!ui->win) {
 		glfwTerminate();
 		return 1;
@@ -139,18 +154,31 @@ int ui_init(UI *ui, int N) {
 	glUseProgram(ui->program);
 	
 	mat4 proj;
-	projection_matrix(proj, 0.1, 20, 1, 1);
+	projection_matrix(proj, 0.1, 100, .4*16./9., 0.4*1);
 	glUniformMatrix4fv(ui->projmatloc,1,0,(GLfloat *)proj);
 
 	ui->cam.v[0]=1;
 
 	glEnable(GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+	//glPointSize(1.5);
 		
 	glGenBuffers(1,&ui->vb);
 	glBindBuffer(GL_ARRAY_BUFFER, ui->vb);
-	glBufferData(GL_ARRAY_BUFFER, N*3, 0, GL_STREAM_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, N*3*sizeof(float), 0, GL_STREAM_DRAW);
 
+	GLfloat quadverts[] = {
+		-0.5,-0.5,0,
+		-0.5,0.5,0,
+		0.5,0.5,0,
+		0.5,-0.5,0
+	};
+
+	glGenBuffers(1,&ui->quadvb);
+	glBindBuffer(GL_ARRAY_BUFFER, ui->quadvb);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadverts), quadverts, GL_STATIC_DRAW);
+
+	ui->pixels = malloc(W*H*3);
 	
 	return 0;
 }
@@ -159,6 +187,7 @@ int ui_init(UI *ui, int N) {
 void ui_deinit(UI *ui) {
 	glDeleteBuffers(1, &ui->vb);
 	free(ui->coords);
+	free(ui->pixels);
 	glfwTerminate();
 }
 
@@ -210,17 +239,23 @@ void ui_draw(UI *ui, Parts *p) {
 	}
 
 	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, ui->vb);
-	glBufferData(GL_ARRAY_BUFFER, p->N*3*sizeof(GLfloat), ui->coords, GL_STREAM_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, ui->quadvb);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-	glDrawArrays(GL_POINTS,0,p->N);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, ui->vb);
+	glBufferData(GL_ARRAY_BUFFER, p->N*3*sizeof(GLfloat), ui->coords, GL_STREAM_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glVertexAttribDivisor(1,4);
+
+	glDrawArraysInstanced(GL_TRIANGLE_FAN,0,4,p->N);
 
 	if(ui->bhtree)
 		draw_bhtree(ui, p->bhtree);
 	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
 
-	
+
 	glfwSwapBuffers(ui->win);
 }
 
@@ -234,13 +269,19 @@ void ui_draw_file(UI *ui, File *f) {
 	glUniformMatrix4fv(ui->viewmatloc,1,0,(GLfloat *)view);
 
 	glEnableVertexAttribArray(0);
-	glBindBuffer(GL_ARRAY_BUFFER, ui->vb);
-	glBufferData(GL_ARRAY_BUFFER, f->N*3*sizeof(GLfloat), f->coords, GL_STREAM_DRAW);
+	glBindBuffer(GL_ARRAY_BUFFER, ui->quadvb);
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 
-	glDrawArrays(GL_POINTS,0,f->N);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, ui->vb);
+	glBufferData(GL_ARRAY_BUFFER, f->N*3*sizeof(GLfloat), f->coords, GL_STREAM_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
+	glVertexAttribDivisor(1,4);
+
+	glDrawArraysInstanced(GL_TRIANGLE_FAN,0,4,f->N);
 
 	glDisableVertexAttribArray(0);
+	glDisableVertexAttribArray(1);
 
 	
 	glfwSwapBuffers(ui->win);
@@ -255,22 +296,22 @@ void ui_poll_events(UI *ui) {
 
 	if(glfwGetKey(ui->win,GLFW_KEY_UP) == GLFW_PRESS) {
 		memcpy(&tmp2,&ui->cam,sizeof(quat));
-		rot_quat(&tmp,0.1,axis2);
+		rot_quat(&tmp,0.01,axis2);
 		qmul(&ui->cam, &tmp2, &tmp);
 	}
 	if(glfwGetKey(ui->win,GLFW_KEY_DOWN) == GLFW_PRESS) {
 		memcpy(&tmp2,&ui->cam,sizeof(quat));
-		rot_quat(&tmp,-0.1,axis2);
+		rot_quat(&tmp,-0.01,axis2);
 		qmul(&ui->cam, &tmp2, &tmp);
 	}
 	if(glfwGetKey(ui->win,GLFW_KEY_LEFT) == GLFW_PRESS) {
 		memcpy(&tmp2,&ui->cam,sizeof(quat));
-		rot_quat(&tmp,-0.1,axis1);
+		rot_quat(&tmp,-0.01,axis1);
 		qmul(&ui->cam, &tmp2, &tmp);
 	}
 	if(glfwGetKey(ui->win,GLFW_KEY_RIGHT) == GLFW_PRESS) {
 		memcpy(&tmp2,&ui->cam,sizeof(quat));
-		rot_quat(&tmp,+0.1,axis1);
+		rot_quat(&tmp,+0.01,axis1);
 		qmul(&ui->cam, &tmp2, &tmp);
 	}
 	if(glfwGetKey(ui->win,GLFW_KEY_Z) == GLFW_PRESS)
@@ -289,4 +330,25 @@ void ui_poll_events(UI *ui) {
 
 double ui_time(void) {
 	return glfwGetTime();
+}
+
+int ui_save_frame(UI *ui, char *filename) {
+	glReadPixels(0,0,W,H,GL_RGB,GL_UNSIGNED_BYTE,ui->pixels);
+
+	uint8_t *output;
+	int size = WebPEncodeRGB(ui->pixels,W,H,W*3, 90, &output);
+	if(size == 0)
+		return 1;
+	glReadPixels(0,0,W,H,GL_RGB,GL_UNSIGNED_BYTE,ui->pixels);
+
+
+	FILE *f = fopen(filename, "wb");
+	if(f == 0)
+		return 1;
+
+	fwrite(output,size,1,f);
+
+	fclose(f);
+	free(output);
+	return 0;
 }
