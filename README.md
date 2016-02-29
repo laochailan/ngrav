@@ -6,22 +6,29 @@ This was a one-weekend project, so some parts are rather unrefined.
 
 ## Usage
 
-This is the really unrefined part:
+To start real-time simulation enter:
 
 ```
 ./ngrav
 ```
 
-does the calculation and saves it into a file.
+If the frame rate is too low, you can precalculate the simulation to a file using
 
 ```
-./ngrav FILENAME
+./ngrav -r
 ```
 
-renders the result from a saved file.
+and render the result using
 
 ```
-./ngrav something something
+./ngrav -p FILE
 ```
 
-More than one argument makes ngrav calculate and render at the same time. Low frame rate. But you can press `T` to see the Barnes-Hut-Tree.
+## Keyboard Controls
+
+Key | Function
+--------------
+←↑↓→ | Rotate View
+z | Zoom out
+x | Zoom in
+c | Show traces (hold down)

@@ -4,6 +4,7 @@
 #include <time.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include "ui.h"
 #include "parts.h"
@@ -60,8 +61,6 @@ int show_loop(char *filename) {
 
 	int frames = 0;
 	while(!ui_should_quit(&ui)) {
-		char filename[32];
-
 		if(file_read_frame(&f) != 0)
 			break;
 		if(file_read_frame(&f) != 0)
@@ -74,7 +73,8 @@ int show_loop(char *filename) {
 			printf("%d frames\n", frames);
 		}
 
-		/*snprintf(filename, sizeof(filename), "frames/%05d.webp", frames);
+		/*char filename[32];
+		snprintf(filename, sizeof(filename), "frames/%05d.webp", frames);
 
 		int rc = ui_save_frame(&ui, filename);
 		if(rc != 0) {
@@ -87,25 +87,11 @@ int show_loop(char *filename) {
 	return 0;
 }
 
-int main(int argc, char **argv) {
+
+int normal_loop(void) {
 	UI ui;
 	Parts p;
-
-	if(argc == 1) {
-		time_t t = time(0);
-		char fn[48];
-		strftime(fn,48,"cache_%F_%T",localtime(&t));
-		printf("Recording to '%s'.\n", fn);	
-
-		return record_loop(fn);
-	} else if(argc == 2) {
-		printf("Rendering from '%s'.\n", argv[1]);
-
-		return show_loop(argv[1]);
-	} else {
-		printf("Too many arguments. Calculate and render at the same time.\n");
-	}
-
+	
 	if(parts_init(&p) != 0) {
 		puts("Error initializing Particles");
 		return 1;
@@ -135,5 +121,68 @@ int main(int argc, char **argv) {
 	}
 
 	ui_deinit(&ui);
+	parts_deinit(&p);
+
 	return 0;
+}
+
+static void set_mode(int *m, int s) {
+	if(*m != 0) {
+		printf("Error: Can only set one mode at once.");
+		*m = -1;
+	} else {
+		*m = s;
+	}
+}
+
+static void parse_options(int *mode, char **a1, int argc, char **argv) {
+	int opt;
+	while((opt = getopt(argc, argv, "rp:")) != -1) {
+		switch(opt) {
+			case 'r':
+				set_mode(mode, 'r');
+				break;
+			case 'p':
+				set_mode(mode, 'p');
+				*a1 = malloc(strlen(optarg)+1);
+				strcpy(*a1, optarg);
+				break;
+			case '?':
+			case ':':
+				printf("Usage: %s [-r] [-p FILE]\n", argv[0]);
+				printf("\n\t-r\tRecord to cache without rendering.\n");
+				printf("\t-p FILE\tPlay a recorded cache file.\n");
+				*mode = -1;
+				return;
+		}
+	}
+}
+
+int main(int argc, char **argv) {
+	char *arg1 = 0;
+	int mode = 0;
+	int rc = 0;
+
+	parse_options(&mode, &arg1, argc, argv);
+
+	if(mode == 'r') {
+		printf("-- Recording Mode --\n");
+		time_t t = time(0);
+		char fn[48];
+		strftime(fn,48,"cache_%F_%T",localtime(&t));
+		printf("Recording to '%s'.\n", fn);	
+
+		rc = record_loop(fn);
+	} else if(mode == 'p') {
+		printf("-- Playback Mode --\n");
+		printf("Rendering from '%s'.\n", arg1);
+
+		rc = show_loop(arg1);
+	} else if(mode == 0) {
+		printf("-- Real-Time Mode --\n");
+		rc = normal_loop();
+	}
+
+	free(arg1);
+	return rc;
 }
