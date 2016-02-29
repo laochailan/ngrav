@@ -26,9 +26,9 @@ and render the result using
 
 ## Keyboard Controls
 
-Key | Function
---------------
-←↑↓→ | Rotate View
-z | Zoom out
-x | Zoom in
-c | Show traces (hold down)
+|Key | Function|
+|----|---------|
+|`←``↑``↓``→` | Rotate View |
+|`z` | Zoom out |
+|`x` | Zoom in |
+|`c` | Show traces (hold down) |
